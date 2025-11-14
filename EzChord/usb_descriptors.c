@@ -24,6 +24,7 @@
  */
 
 #include "tusb.h"
+#include <pico/unique_id.h>
 
 /* A combination of interfaces must have a unique product id, since PC will save device driver after the first plug.
  * Same VID/PID with different interface e.g MSC (first), then CDC (later) will possibly cause system error on PC.
@@ -136,13 +137,13 @@ const struct { uint8_t length; uint8_t type; uint16_t string[1]; }
     languageString = { sizeof(languageString), TUSB_DESC_STRING,
         {0x0409} }; // US English
 
-const struct { uint8_t length; uint8_t type; uint16_t string[7]; }
+const struct { uint8_t length; uint8_t type; uint16_t string[12]; }
     manufactString = { sizeof(manufactString), TUSB_DESC_STRING,
         {'P','i','e','r','r','e','-','Y','v','e','s','H'} };
 
-const struct { uint8_t length; uint8_t type; uint16_t string[15]; }
+const struct { uint8_t length; uint8_t type; uint16_t string[7]; }
     productString = { sizeof(productString), TUSB_DESC_STRING,
-        {'E','z','C','h','o','r',' d'} };
+        {'E','z','C','h','o','r','d'} };
 
 uint16_t serialString[SERIAL_DIGITS + 1] = {
     TUSB_DESC_STRING<<8 | sizeof(serialString) };
