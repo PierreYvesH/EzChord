@@ -1,4 +1,4 @@
-#include "ezchord/matrix.h"
+#include "ezchord/chord.h"
 #include "ezchord/config.h"
 #include "ezchord/midi.h"
 #include "ezchord/led.h"
@@ -7,29 +7,29 @@
 #include <pico/stdlib.h>
 #include <stdint.h>
 
-static_assert(MATRIX_DEBOUNCE_TICKS <= UINT8_MAX/2);
+static_assert(DEBOUNCE_TICKS <= UINT8_MAX/2);
 
-static const uint rowPins[MATRIX_ROWS] = MATRIX_ROW_PINS;
-static const uint colPins[MATRIX_COLS] = MATRIX_COL_PINS;
+static const uint rowPins[CHORD_ROWS] = CHORD_ROW_PINS;
+static const uint colPins[CHORD_COLS] = CHORD_COL_PINS;
 
 static void debounce(uint key, bool signal);
 
 
-void matrix_init()
+void chords_init()
 {
     //                           Pullup
     //                 Switch  .--[ R ]-- V+
     //          Diode  __|__   |
     // Column ---|<|---O   O---+--------- Row
 
-    for (uint r = 0; r < MATRIX_ROWS; ++r) {
+    for (uint r = 0; r < CHORD_ROWS; ++r) {
         const uint pin = rowPins[r];
         gpio_init(pin);
         gpio_set_dir(pin, GPIO_IN);
         gpio_pull_up(pin);
     }
 
-    for (uint c = 0; c < MATRIX_COLS; ++c) {
+    for (uint c = 0; c < CHORD_COLS; ++c) {
         const uint pin = colPins[c];
         gpio_init(pin);
         gpio_set_dir(pin, GPIO_OUT);
@@ -38,19 +38,19 @@ void matrix_init()
 }
 
 
-void matrix_tick()
+void chords_tick()
 {
     // The rows are pulled up and therefore read 1 by default.
     // All Columns are set to 1. During the scan, one column at a time
     // is set to 0. If a switch is pressed, the connected row
     // is grounded and reads 0 as well.
 
-    for (uint c = 0; c < MATRIX_COLS; ++c) {
+    for (uint c = 0; c < CHORD_COLS; ++c) {
         gpio_put(colPins[c], 0);
         sleep_us(PIN_SETTLE_TIME_US);
 
-        for (uint r = 0; r < MATRIX_ROWS; ++r) {
-            const uint key = r*MATRIX_COLS + c;
+        for (uint r = 0; r < CHORD_ROWS; ++r) {
+            const uint key = r*CHORD_COLS + c;
             const bool signal = gpio_get(rowPins[r]);
             debounce(key, signal);
         }
@@ -79,7 +79,7 @@ static void debounce(uint key, bool signal)
     // Hysterisis    Inverted
     // counter       switch state
 
-    static uint8_t states[MATRIX_ROWS*MATRIX_COLS] = {0};
+    static uint8_t states[CHORD_ROWS*CHORD_COLS] = {0};
     uint8_t state = states[key];
 
     // The hysterisis counter reflects how often the signal
@@ -99,7 +99,7 @@ static void debounce(uint key, bool signal)
     // When the signal has fully saturated the counter,
     // invert the state bit and reset the counter.
 
-    if (state >= MATRIX_DEBOUNCE_TICKS * 2) {
+    if (state >= DEBOUNCE_TICKS * 2) {
         report(key, signal);
         state = !signal;
     }

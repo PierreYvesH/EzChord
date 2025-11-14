@@ -6,14 +6,34 @@
 //static bool playing = false;
 static uint8_t msg[3];
 static uint8_t quality = 0;
+static uint8_t octave = 2;
 static uint8_t root = 0; 
 static uint8_t notes[10] = {0};
 static uint8_t scale_modifier = 0;
 
 static ChordQuality chord;
 
-static void change_scale(uint8_t scale){
+static void set_scale(uint8_t scale){
     scale_modifier = scale;
+}
+
+static void set_octave(uint8_t oct){
+    octave = oct;
+} 
+
+static void note_off(int note){
+    msg[0] = 0x80;                    // Note Off - Channel 1
+    msg[1] = note;
+    msg[2] = 0;
+    tud_midi_n_stream_write(0, 0, msg, 3); 
+}
+
+static void note_on(int note){
+    // Then play
+    msg[0] = 0x90;                    // Note On - Channel 1
+    msg[1] = note;
+    msg[2] = velocity;                // Velocity
+    tud_midi_n_stream_write(0, 0, msg, 3); 
 }
 
 static void report(uint k, bool signal)
@@ -21,6 +41,8 @@ static void report(uint k, bool signal)
     static const uint32_t layer[MATRIX_ROWS*MATRIX_COLS] = MATRIX_BASE_LAYER;
     const uint32_t active = layer[k];
     static const uint8_t velocity = 100;
+    static uint8_t pressed_keys = 0;
+    int note = 0;
 
     // Quality or not
     if (active > 9) { 
@@ -34,28 +56,42 @@ static void report(uint k, bool signal)
     }
     // Note off
     else if (signal) {
-        msg[0] = 0x80;                    // Note Off - Channel 1
-        msg[2] = 0;                       // Velocity
- 
-        for (uint i = 0; i < 10; i++){
-            if (notes[i]>0){
-                msg[1] = notes[i];
-                tud_midi_n_stream_write(0, 0, msg, 3); 
-            }
+
+        if (pressed_keys ==1){
+            // Remove the codes
+            for (int i = 0; i < 10; i++){
+                if (notes[i]>0){
+                    note_off(notes[i])
+                    notes[i] = 0;
+                }
+            }   
         }
+        pressed_keys -= 1;
+
     }
+
     // Note on
     else {
+        // First remove any playing notes
+        if (pressed_keys > 1){
+            // Remove the codes
+            for (int i = 0; i < 10; i++){
+                if (notes[i]>0){
+                    note_off(notes[i])
+                    notes[i] = 0;
+                }
+            }
+        }
+
         // Then play
-        msg[0] = 0x90;                    // Note On - Channel 1
-        msg[2] = velocity;                       // Velocity
-        root = C2 + scaleInterval[k] + scale_modifier;
+        root = C2 + scaleInterval[k] + scale_modifier + 12 * (octave - 2);
         chord = QUALITIES[quality];
     
-        for (uint i = 0; i < chord.num_notes; i++){
-            msg[1] = root + chord.intervals[i];
-            notes[i] = msg[1];
-            tud_midi_n_stream_write(0, 0, msg, 3); 
+        for (unt i = 0; i < chord.num_notes; i++){
+            note = root + chord.intervals[i];
+            note_on(note);
+            notes[i] = note;
         }
+        pressed_keys += 1;
     }
 }
