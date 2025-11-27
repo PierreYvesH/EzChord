@@ -21,6 +21,7 @@ static void set_octave(uint8_t oct){
     octave = oct;
 } 
 
+
 static void note_off(int note){
     msg[0] = 0x80;                    // Note Off - Channel 1
     msg[1] = note;
@@ -35,6 +36,12 @@ static void note_on(int note){
     msg[2] = velocity;                // Velocity
     tud_midi_n_stream_write(0, 0, msg, 3); 
 }
+
+//returns notes based on root note
+static uint8_t * midi_chord_notes(int root, bool minor, bool add7, bool add9, bool diminished){
+    uint8_t[10] notes;
+    return *notes
+} 
 
 static void report(uint k, bool signal)
 {
