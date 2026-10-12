@@ -1,5 +1,5 @@
-#include "ezchord/led.h"
-#include "ezchord/config.h"
+#include "EzChord/led.h"
+#include "EzChord/config.h"
 #include <pico/stdlib.h>
 
 

@@ -1,7 +1,8 @@
-#include "ezchord/chord.h"
-#include "ezchord/config.h"
-#include "ezchord/midi.h"
-#include "ezchord/led.h"
+#include "EzChord/midi.h"
+#include "EzChord/oled.h"
+#include "EzChord/chord.h"
+#include "EzChord/config.h"
+#include "EzChord/quality.h"
 #include "tusb.h"
 #include <pico/bootrom.h> 
 #include <pico/stdlib.h>
@@ -13,9 +14,10 @@ static const uint rowPins[CHORD_ROWS] = CHORD_ROW_PINS;
 static const uint colPins[CHORD_COLS] = CHORD_COL_PINS;
 
 static void debounce(uint key, bool signal);
+static void report(uint k, bool signal);
 
 
-void chords_init()
+void chord_init()
 {
     //                           Pullup
     //                 Switch  .--[ R ]-- V+
@@ -38,7 +40,7 @@ void chords_init()
 }
 
 
-void chords_tick()
+void chord_tick()
 {
     // The rows are pulled up and therefore read 1 by default.
     // All Columns are set to 1. During the scan, one column at a time
@@ -54,7 +56,6 @@ void chords_tick()
             const bool signal = gpio_get(rowPins[r]);
             debounce(key, signal);
         }
-
         gpio_put(colPins[c], 1);
     }
 }
@@ -107,5 +108,69 @@ static void debounce(uint key, bool signal)
     states[key] = state;
 }
 
+static void report(uint k, bool signal)
+{
+    static const uint8_t layer[CHORD_ROWS*CHORD_COLS] = CHORD_LAYER;
+    const uint8_t active = layer[k];
+    static const uint8_t velocity = VEL;
+    static uint8_t playing[MAX_NOTE] = {0};
+    static int last_pressed = -1;
+
+    uint8_t chord_i = active >> 5;
+    uint8_t chord_quality = active ^ (chord_i << 5); 
+    uint8_t pressed_quality = get_quality();
+
+    // update quality & decompose
+    chord_quality |= pressed_quality; 
+    
+    uint8_t minor = chord_quality & 1;
+    uint8_t six = (chord_quality >> 1) & 1;
+    uint8_t add7 = (chord_quality >> 2) & 1;
+    uint8_t add9 = (chord_quality >> 3) & 1;
+    uint8_t dim = (chord_quality >> 4) & 1;
+
+    uint8_t octave = get_octave();
+    uint8_t scale = get_scale();
+
+    const uint8_t* scale_interval = get_scale_interval();
+
+    uint8_t root = C2 + (octave - 2)*12 + scale + scale_interval[chord_i];
+
+    uint8_t *notes = midi_chord_notes(root, minor, six, add7, add9, dim);
+    midi_chord_name(root, minor, six, add7, add9, dim);
+    //printf("Pressed key: %i\n", k);
+    
+    // Note off
+    if (signal) {
+        // Remove the codes if playing
+        if (last_pressed == k){
+            set_show_chord(false);
+            for (int i = 0; i < MAX_NOTE; i++){
+                if (playing[i]>0){
+                    note_off(playing[i]);
+                    playing[i] = 0;
+                }
+            }
+        }   
+    }
+
+    // Note on
+    else {
+        // Remove the codes
+        for (int i = 0; i < MAX_NOTE; i++){
+            if (playing[i]>0){
+                note_off(playing[i]);
+                playing[i] = 0;
+            }
+        }
+        // Add codes
+        set_show_chord(true);
+        for (int i = 0; i < MAX_NOTE; i++){
+            note_on(notes[i], velocity);
+            playing[i] = notes[i];
+        }
+        last_pressed = k;
+    }
+}
 
 

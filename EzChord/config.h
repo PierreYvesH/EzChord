@@ -9,37 +9,41 @@
 #define CHORD_ROW_PINS  { 0, 1 }
 #define CHORD_COL_PINS  { 2, 3, 4, 5}
 
-#define QUALITIES_ROWS  1
-#define QUALITIES_COLS  4
+#define QUALITY_ROWS  1
+#define QUALITY_COLS  4
 
-#define QUALITIES_ROW_PINS {6}
-#define QUALITIES_COL_PINS {7, 8, 9, 10}
+#define QUALITY_ROW_PINS {6}
+#define QUALITY_COL_PINS {7, 8, 9}
 
 #define BASS_PIN 16
 
+#define LED_PIN 25
+
 // Future for key or basschange
-//#define ENCODER_A_PIN    11
-//#define ENCODER_B_PIN    12
-//#define ENCODER_PUSH_PIN 13
+#define ENCODER_A_PIN    13
+#define ENCODER_B_PIN    12
+#define ENCODER_SW_PIN   11
 
 // OLED display
-//#define OLED_SDA_PIN 14
-//#define OLED_SCL_PIN 15
+#define OLED_SDA_PIN 20
+#define OLED_SCL_PIN 21
+#define OLED_TICKS   200
 
+#define VEL 100
 // Midi usage
 // ---------
 
-// chord: 0x degree, diminished, add9, add7, minor
+// chord: 0x degree, diminished (16), add9(8), add7(4), six(2), minor(1) 
+// degrees: I, ii, iii, IV, V, vi, vii* - 1
 #define CHORD_LAYER  {\
-    0x20001, 0x40000, 0x60001, 0x0, \
-    0x10000, 0x30001, 0x50000, 0x71001}
+    0b00100001, 0b01100000, 0b10100001, 0x0, \
+    0b00000000, 0b01000001, 0b10000000, 0b11010000}
 
-#define QUALITIES_LAYER {\
-    0x0001, 0x0010, 0x0100, 0x1000}
+// diminished(16), add9(8), add7(4), six (2), minor (1)
+#define QUALITY_LAYER {\
+    0b00010, 0b00100, 0b01000}
 
-//#define ENCODER_CW_USAGE   cVOLUP
-//#define ENCODER_CCW_USAGE  cVOLDN
-
+#define MAX_NOTE 6
 // Timing
 // ------
 
@@ -48,8 +52,8 @@
 #define TICK_INTERVAL_US     500
 
 #define DEBOUNCE_TICKS   8
-//#define ENCODER_KEYPRESS_TICKS  30
-#define LED_BLINK_TICKS         500
+#define ENCODER_KEYPRESS_TICKS  30
+#define LED_BLINK_TICKS         500           
 
 //#define FN_KEY_TAPS    2
 //#define BOOT_KEY_TAPS  3

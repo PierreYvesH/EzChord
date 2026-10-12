@@ -22,15 +22,28 @@ include($ENV{PICO_SDK_PATH}/pico_sdk_init.cmake)
 # Project
 project(EzChord VERSION 0.1)
 set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+
 pico_sdk_init()
 
 # Source
 add_executable(EzChord
+    EzChord/midi.c
     EzChord/led.c
     EzChord/main.c
-    EzChord/matrix.c
-    EzChord/usb_descriptors.c)
-target_link_libraries(EzChord pico_stdlib pico_unique_id tinyusb_device)
+    EzChord/chord.c
+    EzChord/oled.c
+    EzChord/led.c
+    EzChord/picoOled.c
+    EzChord/quality.c
+    EzChord/encoder.c
+    EzChord/bass.c
+    EzChord/usb_descriptors.c
+    )
+
+#target_link_libraries(EzChord pico_stdlib hardware_i2c pico_unique_id )
+
+target_link_libraries(EzChord pico_stdlib hardware_i2c pico_unique_id tinyusb_device)
 target_include_directories(EzChord PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_compile_definitions(
     EzChord PRIVATE CFG_TUSB_CONFIG_FILE="EzChord/tusb_config.h")
@@ -38,12 +51,15 @@ target_compile_definitions(
 # Binary
 pico_set_program_version(EzChord "${PROJECT_VERSION}")
 pico_set_program_description(EzChord "EzChord firmware")
-pico_set_binary_type(EzChord copy_to_ram)
+#pico_set_binary_type(EzChord copy_to_ram)
 pico_add_extra_outputs(EzChord)
 
+pico_enable_stdio_usb(EzChord 1)
+pico_enable_stdio_uart(EzChord 0)
+
 # Verbose compiler warnings
-if(MSVC)
-    target_compile_options(EzChord PRIVATE /W4 /WX)
-else()
-    target_compile_options(EzChord PRIVATE -Wall -Wextra -Werror)
-endif()
+#if(MSVC)
+#    target_compile_options(EzChord PRIVATE /W4 /WX)
+#else()
+#    target_compile_options(EzChord PRIVATE -Wall -Wextra -Werror)
+#endif()
