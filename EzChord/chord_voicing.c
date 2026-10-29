@@ -41,7 +41,7 @@ static void build_name(char *dest, int pitch_class, uint8_t q)
         strcat(dest, add7 ? "/6" : "6");
 }
 
-Chord chord_voice(uint8_t key, uint8_t held_quality, int octave, int scale)
+Chord chord_voice(uint8_t key, uint8_t held_quality, int octave, int scale, bool bass)
 {
     Chord chord = {0};
     // Layer byte: top 3 bits = degree, low 5 bits = the key's own quality
@@ -62,6 +62,7 @@ Chord chord_voice(uint8_t key, uint8_t held_quality, int octave, int scale)
     // pitch class used for the name.
     const int offset = scale + degree_interval[degree % 7];
     const int root = BASE_NOTE + (octave - 2) * 12 + offset;
+    const int bass_note = bass ? root - 12 : root;
 
     // Candidates are built first, then range-checked so out-of-range notes
     // are dropped and `count` stays accurate.
@@ -76,6 +77,8 @@ Chord chord_voice(uint8_t key, uint8_t held_quality, int octave, int scale)
         candidates[n++] = root + seventh;
     if (q & QUALITY_ADD9)
         candidates[n++] = root + ninth;
+    if (bass)
+        candidates[n++] = bass_note;
 
     for (int i = 0; i < n; i++) {
         if (candidates[i] >= 0 && candidates[i] <= 127)

@@ -29,7 +29,7 @@ void chord_player_key(ChordPlayer *p, unsigned key, bool pressed, ChordContext c
 
     // Replace whatever is sounding, then voice the new chord
     release_playing(p);
-    Chord chord = chord_voice(key, ctx.quality, ctx.octave, ctx.scale);
+    Chord chord = chord_voice(key, ctx.quality, ctx.octave, ctx.scale, ctx.bass);
     for (int i = 0; i < chord.count; i++) {
         p->out.note_on(p->out.ctx, chord.notes[i], p->velocity);
         p->playing[i] = chord.notes[i];

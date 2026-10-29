@@ -11,6 +11,7 @@ typedef struct {
     uint8_t quality;  // held QUALITY_* bits
     int octave;
     int scale;
+    bool bass;        // true if the bass key is held
 } ChordContext;
 
 typedef struct {

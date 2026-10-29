@@ -19,7 +19,7 @@ static void on_key(unsigned key, bool pressed)
 {
     // Sampled at the moment of the key edge
     const Performance *perf = performance();
-    ChordContext ctx = {get_quality(), perf->octave, perf->scale};
+    ChordContext ctx = {get_quality(), perf->octave, perf->scale, perf->bass};
     chord_player_key(&player, key, pressed, ctx);
 }
 
