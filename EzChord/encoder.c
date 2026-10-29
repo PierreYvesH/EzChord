@@ -1,17 +1,13 @@
 #include "EzChord/encoder.h"
 #include "EzChord/config.h"
-#include "EzChord/midi.h"
+#include "EzChord/debounce.h"
+#include "EzChord/performance.h"
 #include <pico/stdlib.h>
 //#include <stdio.h>
 
 
 
 #if defined(ENCODER_A_PIN) && defined(ENCODER_B_PIN) && defined(ENCODER_SW_PIN)
-static bool octave_mode = true;
-
-int get_mode(){
-    return octave_mode;
-}
 
 void encoder_init()
 {
@@ -63,40 +59,22 @@ void encoder_tick()
         0b100, 0b110, 0b110, 0b011}; // 110AB
 
     static uint8_t state = 0b011;
-    static uint8_t sw_state = 0;
-    
-    
-    const bool signal = gpio_get(ENCODER_SW_PIN);
-    
-    if (signal == sw_state % 2)
-        sw_state += 2;
-    else if (sw_state >= 2)
-        sw_state -= 2;
+    static Debounce sw;
 
-    if (sw_state >= DEBOUNCE_TICKS * 2){
-        sw_state = !signal;
-        if(!signal){
-            octave_mode = !octave_mode;
-        }
-    }
+    // The encoder only decodes the hardware; what a step or click means
+    // is decided by the Performance module.
+    if (debounce_update(&sw, !gpio_get(ENCODER_SW_PIN), DEBOUNCE_TICKS) == DEBOUNCE_PRESSED)
+        performance_toggle_mode(performance());
     
     state = state<<1 | gpio_get(ENCODER_A_PIN);
     state = state<<1 | gpio_get(ENCODER_B_PIN);
 
     switch (state) {
-        case 0b00111: 
-        if (octave_mode){
-            set_octave(-1);
-        }else{
-            set_scale(-1);
-        }
+        case 0b00111:
+            performance_turn(performance(), -1);
             break;
-        case 0b11011: 
-        if (octave_mode){
-            set_octave(1);
-        }else{
-            set_scale(1);
-        } 
+        case 0b11011:
+            performance_turn(performance(), 1);
             break;
         default:                 
             break;

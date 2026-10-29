@@ -1,28 +1,16 @@
 #pragma once
 
-#ifndef MIDI_H_
-#define MIDI_H_
-
-#include <stdint.h>
-#include <stdbool.h>
-
-void set_scale(int scale);
-int get_scale();
-const char** get_scale_notes();
-const uint8_t* get_scale_interval();
-void set_octave(int oct);
-int get_octave();
-void set_bass(bool val);
-int get_bass();
-void get_chord_name(char *dest);
+// Raw MIDI output over USB (channel 1).
 void note_off(int note);
 void note_on(int note, int velocity);
 
-uint8_t * midi_chord_notes(int root, bool minor, bool six, bool add7, bool add9, bool diminished);
+// Seam: where notes are sent. USB in firmware (midi_usb_out()), a
+// recording fake in tests. Pure header: no USB stack needed to include it.
+typedef struct {
+    void *ctx;
+    void (*note_on)(void *ctx, int note, int velocity);
+    void (*note_off)(void *ctx, int note);
+} MidiOut;
 
-void midi_chord_name(int root, bool minor, bool six, bool add7, bool add9, bool diminished);
-
-
-#define C2 36
-
-#endif
+// The USB adapter: forwards to note_on()/note_off().
+MidiOut midi_usb_out(void);

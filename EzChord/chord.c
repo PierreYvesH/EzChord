@@ -1,176 +1,40 @@
-#include "EzChord/midi.h"
-#include "EzChord/oled.h"
 #include "EzChord/chord.h"
+#include "EzChord/chord_player.h"
 #include "EzChord/config.h"
+#include "EzChord/key_matrix_gpio.h"
+#include "EzChord/midi.h"
+#include "EzChord/performance.h"
 #include "EzChord/quality.h"
-#include "tusb.h"
-#include <pico/bootrom.h> 
-#include <pico/stdlib.h>
-#include <stdint.h>
 
-static_assert(DEBOUNCE_TICKS <= UINT8_MAX/2);
+// Chord keys: wiring only. The matrix reports debounced edges; the
+// ChordPlayer decides what they mean. This file gathers the live inputs
+// (quality keys, Performance settings) and connects the USB MIDI adapter.
+static const unsigned rowPins[CHORD_ROWS] = CHORD_ROW_PINS;
+static const unsigned colPins[CHORD_COLS] = CHORD_COL_PINS;
 
-static const uint rowPins[CHORD_ROWS] = CHORD_ROW_PINS;
-static const uint colPins[CHORD_COLS] = CHORD_COL_PINS;
+static GpioKeyMatrix matrix;
+static ChordPlayer player;
 
-static void debounce(uint key, bool signal);
-static void report(uint k, bool signal);
-
+static void on_key(unsigned key, bool pressed)
+{
+    // Sampled at the moment of the key edge
+    const Performance *perf = performance();
+    ChordContext ctx = {get_quality(), perf->octave, perf->scale};
+    chord_player_key(&player, key, pressed, ctx);
+}
 
 void chord_init()
 {
-    //                           Pullup
-    //                 Switch  .--[ R ]-- V+
-    //          Diode  __|__   |
-    // Column ---|<|---O   O---+--------- Row
-
-    for (uint r = 0; r < CHORD_ROWS; ++r) {
-        const uint pin = rowPins[r];
-        gpio_init(pin);
-        gpio_set_dir(pin, GPIO_IN);
-        gpio_pull_up(pin);
-    }
-
-    for (uint c = 0; c < CHORD_COLS; ++c) {
-        const uint pin = colPins[c];
-        gpio_init(pin);
-        gpio_set_dir(pin, GPIO_OUT);
-        gpio_put(pin, 1);
-    }
+    chord_player_init(&player, midi_usb_out(), VEL);
+    gpio_key_matrix_init(&matrix, rowPins, CHORD_ROWS, colPins, CHORD_COLS, on_key);
 }
-
 
 void chord_tick()
 {
-    // The rows are pulled up and therefore read 1 by default.
-    // All Columns are set to 1. During the scan, one column at a time
-    // is set to 0. If a switch is pressed, the connected row
-    // is grounded and reads 0 as well.
-
-    for (uint c = 0; c < CHORD_COLS; ++c) {
-        gpio_put(colPins[c], 0);
-        sleep_us(PIN_SETTLE_TIME_US);
-
-        for (uint r = 0; r < CHORD_ROWS; ++r) {
-            const uint key = r*CHORD_COLS + c;
-            const bool signal = gpio_get(rowPins[r]);
-            debounce(key, signal);
-        }
-        gpio_put(colPins[c], 1);
-    }
+    gpio_key_matrix_tick(&matrix);
 }
 
-
-
-static void debounce(uint key, bool signal)
+const char *chord_display_name(void)
 {
-    // EvenOdd debounce algorithm
-    // Based on the integrator algorithm by Kenneth A. Kuhn
-    // https://www.kennethkuhn.com/electronics/debounce.c
-    //
-    // The progress is maintained in one byte per switch.
-    // The lowest bit represents the inverse of the current
-    // switch state. It is inverted so that the starting
-    // value is zero and can be auto-initalized in an array.
-    // The remaining bits are used as a hysterisis counter.
-    //
-    // .-------------.-.
-    // |7 6 5 4 3 2 1|0|
-    // '-------------'-'
-    // Hysterisis    Inverted
-    // counter       switch state
-
-    static uint8_t states[CHORD_ROWS*CHORD_COLS] = {0};
-    uint8_t state = states[key];
-
-    // The hysterisis counter reflects how often the signal
-    // has matched the state bit in recent history. We add
-    // or subtract a value of 2 to jump over the state bit.
-    //            .-.
-    //          .-' '-. .- Counter
-    //    .-. .-'     '-'
-    // ---' '-'
-    // ! ! = ! = = = ! ! = Signal
-
-    if (signal == state % 2)
-        state += 2;
-    else if (state >= 2)
-        state -= 2;
-
-    // When the signal has fully saturated the counter,
-    // invert the state bit and reset the counter.
-
-    if (state >= DEBOUNCE_TICKS * 2) {
-        report(key, signal);
-        state = !signal;
-    }
-
-    states[key] = state;
+    return chord_player_name(&player);
 }
-
-static void report(uint k, bool signal)
-{
-    static const uint8_t layer[CHORD_ROWS*CHORD_COLS] = CHORD_LAYER;
-    const uint8_t active = layer[k];
-    static const uint8_t velocity = VEL;
-    static uint8_t playing[MAX_NOTE] = {0};
-    static int last_pressed = -1;
-
-    uint8_t chord_i = active >> 5;
-    uint8_t chord_quality = active ^ (chord_i << 5); 
-    uint8_t pressed_quality = get_quality();
-
-    // update quality & decompose
-    chord_quality |= pressed_quality; 
-    
-    uint8_t minor = chord_quality & 1;
-    uint8_t six = (chord_quality >> 1) & 1;
-    uint8_t add7 = (chord_quality >> 2) & 1;
-    uint8_t add9 = (chord_quality >> 3) & 1;
-    uint8_t dim = (chord_quality >> 4) & 1;
-
-    uint8_t octave = get_octave();
-    uint8_t scale = get_scale();
-
-    const uint8_t* scale_interval = get_scale_interval();
-
-    uint8_t root = C2 + (octave - 2)*12 + scale + scale_interval[chord_i];
-
-    uint8_t *notes = midi_chord_notes(root, minor, six, add7, add9, dim);
-    midi_chord_name(root, minor, six, add7, add9, dim);
-    //printf("Pressed key: %i\n", k);
-    
-    // Note off
-    if (signal) {
-        // Remove the codes if playing
-        if (last_pressed == k){
-            set_show_chord(false);
-            for (int i = 0; i < MAX_NOTE; i++){
-                if (playing[i]>0){
-                    note_off(playing[i]);
-                    playing[i] = 0;
-                }
-            }
-        }   
-    }
-
-    // Note on
-    else {
-        // Remove the codes
-        for (int i = 0; i < MAX_NOTE; i++){
-            if (playing[i]>0){
-                note_off(playing[i]);
-                playing[i] = 0;
-            }
-        }
-        // Add codes
-        set_show_chord(true);
-        for (int i = 0; i < MAX_NOTE; i++){
-            note_on(notes[i], velocity);
-            playing[i] = notes[i];
-        }
-        last_pressed = k;
-    }
-}
-
-

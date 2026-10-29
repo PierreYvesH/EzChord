@@ -1,5 +1,7 @@
 #pragma once
 
+#include "EzChord/quality_bits.h"
+
 // GPIO pins
 // ---------
 
@@ -33,15 +35,17 @@
 // Midi usage
 // ---------
 
-// chord: 0x degree, diminished (16), add9(8), add7(4), six(2), minor(1) 
-// degrees: I, ii, iii, IV, V, vi, vii* - 1
+// Chord keys: CHORD_KEY(degree, own quality bits), see quality_bits.h.
+// degrees (0-based): I, ii, iii, IV, V, vi, vii*
 #define CHORD_LAYER  {\
-    0b00100001, 0b01100000, 0b10100001, 0x0, \
-    0b00000000, 0b01000001, 0b10000000, 0b11010000}
+    CHORD_KEY(1, QUALITY_MINOR), CHORD_KEY(3, 0), \
+    CHORD_KEY(5, QUALITY_MINOR), CHORD_KEY(0, 0), \
+    CHORD_KEY(0, 0), CHORD_KEY(2, QUALITY_MINOR), \
+    CHORD_KEY(4, 0), CHORD_KEY(6, QUALITY_DIM)}
 
-// diminished(16), add9(8), add7(4), six (2), minor (1)
+// Quality keys: the QUALITY_* bits each key adds while held
 #define QUALITY_LAYER {\
-    0b00010, 0b00100, 0b01000}
+    QUALITY_SIX, QUALITY_ADD7, QUALITY_ADD9}
 
 #define MAX_NOTE 6
 // Timing

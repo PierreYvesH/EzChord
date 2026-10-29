@@ -3,20 +3,17 @@
 #include "hardware/i2c.h"
 #include "hardware/timer.h"
 #include "pico/stdlib.h"
-#include "EzChord/midi.h"
-#include "EzChord/encoder.h"
+#include "EzChord/performance.h"
+#include "EzChord/chord_voicing.h"
+#include "EzChord/chord.h"
+#include "EzChord/display_layout.h"
 #include "EzChord/small_font.h"
 #include "EzChord/big_font.h"
-
-#include <stdio.h>
-#include <string.h>
-#include <pico/stdlib.h>
 
 void configOled(t_OledParams *oled);
 
 static t_OledParams g_myOled;
 static uint32_t oledTicks = OLED_TICKS;
-static bool show_chord = false;
 
 // Initialize the oled structure with the information
 //  required to define the display and then configure it
@@ -41,86 +38,42 @@ void oled_init(){
     configOled(&g_myOled);
 }
 
-
-void set_show_chord(bool show){
-    show_chord = show;
+// OLED adapter for DisplaySink: maps the layout's fonts and lines onto
+// the picoOled driver. ctx is the t_OledParams.
+static void oled_draw_text(void *ctx, int x, int y, DisplayFont font, const char *text){
+    if (font == DISPLAY_FONT_BIG) {
+        oledDraw_string_font((t_OledParams *)ctx, x, y, (const uint8_t *)text,
+                &big_font_charmap[0], &big_font[0]);
+    } else {
+        oledDraw_string_font((t_OledParams *)ctx, x, y, (const uint8_t *)text,
+                &small_font_charmap[0], &small_font[0]);
+    }
 }
+
+static void oled_draw_line(void *ctx, int x0, int y0, int x1, int y1){
+    oledDraw_line((t_OledParams *)ctx, x0, y0, x1, y1, WHITE);
+}
+
+// Redraws the screen every OLED_TICKS ticks. All layout lives in
+// display_layout.c; this only gathers the model and drives the display.
 void oled_tick(){
     if (oledTicks++ < OLED_TICKS){
         return;
     }
     oledTicks = 0;
 
+    // One consistent snapshot of the live settings
+    const Performance *perf = performance();
+    const DisplayModel model = {
+        .chord_name = chord_display_name(),
+        .bass = perf->bass,
+        .octave_mode = perf->mode == PERFORMANCE_MODE_OCTAVE,
+        .octave = perf->octave,
+        .scale_name = chord_pitch_name(perf->scale),
+    };
+    const DisplaySink sink = {&g_myOled, oled_draw_text, oled_draw_line};
+
     oledClear(&g_myOled, BLACK);
-    
-    // Get Bass mode
-    uint8_t bass = get_bass();
-    
-    // Get Oct/Scale mod Mode
-    uint8_t mode = get_mode();
-    
-    // Get Oct and Scale
-    int oct_n = get_octave();
-    int scale_n = get_scale();
-    const char** scale_notes = get_scale_notes();
-    const char *scale = scale_notes[scale_n];
-    
-    char msg_oct_scale[10] = "OCT ";
-    char msg_bass[10] = "";
-
-    //Format
-    char oct[3];
-    if (oct_n >= 0) {
-        sprintf(oct, "+%i", oct_n);
-
-    } else {
-        sprintf(oct, "%i", oct_n);
-    }
-
-    if (bass){
-        strcat(msg_bass, "BASS ON");
-    }else{
-        strcat(msg_bass, "BASS OFF");
-    }
-    
-    strcat(msg_oct_scale, oct);
-    strcat(msg_oct_scale, "  ");
-    strcat(msg_oct_scale, scale);
-
-    
-    // Display
-    if (show_chord){
-        char msg_chord[20];
-        get_chord_name(msg_chord);
-        uint8_t len = strlen(msg_chord);
-        uint8_t chord_x = (W_128-13*len)/2;
-        uint8_t chord_y = 5;
-        oledDraw_string_font(&g_myOled, chord_x, chord_y,
-                (const char *)msg_chord, &big_font_charmap[0], 
-                &big_font[0]); 
-    }
-
-    uint8_t bot_x = 2;
-    uint8_t bot_y = H_64 - 16;
-    
-    int shift = strlen("BASS OFF")*7-3+8;
-
-    oledDraw_string_font(&g_myOled, bot_x, bot_y,
-                (const char *)msg_bass, &small_font_charmap[0], 
-                &small_font[0]); 
-    oledDraw_string_font(&g_myOled, bot_x+shift, bot_y,
-                (const char *)msg_oct_scale, &small_font_charmap[0], 
-                &small_font[0]);
-    
-    uint8_t l_x = bot_x + shift;
-    uint8_t l_len = 7 * 5 + 4;
-    if (!mode){
-        l_x += l_len + 8; 
-        l_len = 14;
-    }
-    oledDraw_line(&g_myOled, l_x, H_64-1, l_x + l_len, H_64-1, WHITE);
-    
+    display_render(&model, &sink);
     oledDisplay(&g_myOled);
-    //printf("Time elapsed: %i ms \n", (int) (get_absolute_time() - time)/1000);
 }
-    

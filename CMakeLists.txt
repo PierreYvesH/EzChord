@@ -32,6 +32,14 @@ add_executable(EzChord
     EzChord/led.c
     EzChord/main.c
     EzChord/chord.c
+    EzChord/chord_player.c
+    EzChord/display_layout.c
+    EzChord/chord_voicing.c
+    EzChord/performance.c
+    EzChord/quality_mask.c
+    EzChord/debounce.c
+    EzChord/key_matrix.c
+    EzChord/key_matrix_gpio.c
     EzChord/oled.c
     EzChord/led.c
     EzChord/picoOled.c
