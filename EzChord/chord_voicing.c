@@ -38,7 +38,7 @@ static void build_name(char *dest, int pitch_class, uint8_t q)
         strcat(dest, "add9");
 
     if (six)
-        strcat(dest, add7 ? "/6" : "6");
+        strcat(dest, (add7||add9) ? "/6" : "6");
 }
 
 Chord chord_voice(uint8_t key, uint8_t held_quality, int octave, int scale, bool bass)

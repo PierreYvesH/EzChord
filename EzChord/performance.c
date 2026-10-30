@@ -2,7 +2,7 @@
 
 void performance_init(Performance *p)
 {
-    p->octave = 2;
+    p->octave = 3;
     p->scale = 0;
     p->bass = false;
     p->mode = PERFORMANCE_MODE_OCTAVE;
