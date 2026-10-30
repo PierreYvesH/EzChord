@@ -3,6 +3,7 @@
 #include "hardware/i2c.h"
 #include "hardware/timer.h"
 #include "pico/stdlib.h"
+#include <string.h>
 #include "EzChord/performance.h"
 #include "EzChord/chord_voicing.h"
 #include "EzChord/chord.h"
@@ -13,7 +14,25 @@
 void configOled(t_OledParams *oled);
 
 static t_OledParams g_myOled;
-static uint32_t oledTicks = OLED_TICKS;
+
+// Last drawn model, for change detection. chord_name/scale_name pointers are
+// not stable (player buffer / lookup), so the chord name is copied.
+static DisplayModel last_model;
+static char last_chord_name[16];
+static bool drawn = false;
+
+// True if `a` would render the same screen as `b` (whose chord name text
+// is in `b_chord`, NULL pointer in b meaning no chord).
+static bool model_equal(const DisplayModel *a, const DisplayModel *b, const char *b_chord){
+    if ((a->chord_name == NULL) != (b->chord_name == NULL))
+        return false;
+    if (a->chord_name && strcmp(a->chord_name, b_chord) != 0)
+        return false;
+    return a->bass == b->bass
+        && a->octave_mode == b->octave_mode
+        && a->octave == b->octave
+        && strcmp(a->scale_name, b->scale_name) == 0;
+}
 
 // Initialize the oled structure with the information
 //  required to define the display and then configure it
@@ -54,15 +73,12 @@ static void oled_draw_line(void *ctx, int x0, int y0, int x1, int y1){
     oledDraw_line((t_OledParams *)ctx, x0, y0, x1, y1, WHITE);
 }
 
-// Redraws the screen every OLED_TICKS ticks. All layout lives in
-// display_layout.c; this only gathers the model and drives the display.
+// Redraws the screen only when the displayed model changes, so the slow
+// blocking I2C transfer doesn't stall the main loop (and miss encoder edges)
+// while nothing is happening. All layout lives in display_layout.c; this
+// gathers the model, compares it with the last drawn one, and drives the display.
 void oled_tick(){
-    if (oledTicks++ < OLED_TICKS){
-        return;
-    }
-    oledTicks = 0;
-
-    // One consistent snapshot of the live settings
+    // Snapshot of the live settings
     const Performance *perf = performance();
     const DisplayModel model = {
         .chord_name = chord_display_name(),
@@ -71,9 +87,21 @@ void oled_tick(){
         .octave = perf->octave,
         .scale_name = chord_pitch_name(perf->scale),
     };
+
+    if (drawn && model_equal(&model, &last_model, last_chord_name))
+        return;
+
     const DisplaySink sink = {&g_myOled, oled_draw_text, oled_draw_line};
 
     oledClear(&g_myOled, BLACK);
     display_render(&model, &sink);
     oledDisplay(&g_myOled);
+
+    // chord_name points into the player's buffer, so keep a copy to compare
+    last_model = model;
+    if (model.chord_name) {
+        strncpy(last_chord_name, model.chord_name, sizeof last_chord_name - 1);
+        last_chord_name[sizeof last_chord_name - 1] = '\0';
+    }
+    drawn = true;
 }
